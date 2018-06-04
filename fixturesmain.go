@@ -88,7 +88,7 @@ func processResults(resultChan chan EvaluationResult, wg sync.WaitGroup) {
 			log.Printf("Processed another batch of %d combinations: latest one was %v", maxCount, result.indices)
 			writeBreakpoints(result.indices)
 			counter = 0
-			if cmdout, err := exec.Command("git", "commit", "-m", "\"Latest status\"", bestFile, breakpointFile).Output(); err != nil {
+			if cmdout, err := exec.Command("git", "commit", "-m", "Latest status", bestFile, breakpointFile).Output(); err != nil {
 				log.Println("Commit failed", cmdout, err)
 			}
 		}
