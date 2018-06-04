@@ -12,6 +12,7 @@ import (
 	"sync"
 	"syscall"
 	"log"
+	"os/exec"
 )
 
 const breakpointFile = "breakpoint"
@@ -46,7 +47,6 @@ func processCombinations(resultChan chan EvaluationResult, stoppingChan chan str
 	defer close(resultChan)
 	list := fixtures.BuildFixtureList()
 	it := list.Iterator(readBreakpoints()...)
-	counter, maxCount := 0, 10000
 	for {
 		if checkForStop(stoppingChan) {
 			break
@@ -62,11 +62,6 @@ func processCombinations(resultChan chan EvaluationResult, stoppingChan chan str
 			score:    sch.Evaluate(),
 		}
 		resultChan <- result
-		counter++
-		if counter == maxCount {
-			log.Printf("Processed another batch of %d combinations: latest one was %v", maxCount, result.indices)
-			counter = 0
-		}
 	}
 }
 
@@ -81,6 +76,7 @@ func checkForStop(stoppingChan chan struct{}) bool {
 
 func processResults(resultChan chan EvaluationResult, wg sync.WaitGroup) {
 	defer wg.Done()
+	counter, maxCount := 0, 10000
 	for result := range resultChan {
 		if bestScore == -1 || bestScore > result.score {
 			writeBest(result.schedule, result.score)
@@ -88,6 +84,14 @@ func processResults(resultChan chan EvaluationResult, wg sync.WaitGroup) {
 			bestScore = result.score
 		}
 		writeBreakpoints(result.indices)
+		counter++
+		if counter == maxCount {
+			log.Printf("Processed another batch of %d combinations: latest one was %v", maxCount, result.indices)
+			counter = 0
+			if cmdout, err := exec.Command("git", "commit", "-m", "\"Latest status\"", bestFile, breakpointFile).Output(); err != nil {
+				log.Println("Commit failed", cmdout, err)
+			}
+		}
 	}
 }
 
