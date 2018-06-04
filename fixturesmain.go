@@ -21,7 +21,7 @@ var bestScore = -1
 
 func main() {
 	bestScore = readBestScore()
-	resultChan := make(chan EvaluationResult)
+	resultChan := make(chan EvaluationResult, 10)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGKILL)
 	stoppingChan := make(chan struct{}, 1)
@@ -64,7 +64,7 @@ func processCombinations(resultChan chan EvaluationResult, stoppingChan chan str
 		resultChan <- result
 		counter++
 		if counter == maxCount {
-			log.Printf("Processed another batch of %d combinations", maxCount)
+			log.Printf("Processed another batch of %d combinations: latest one was %v", maxCount, result.indices)
 			counter = 0
 		}
 	}
