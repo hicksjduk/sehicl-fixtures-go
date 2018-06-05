@@ -19,6 +19,8 @@ const breakpointFile = "breakpoint"
 const bestFile = "best"
 
 var bestScore = -1
+const messageFrequency = 100000
+const commitFrequency = 1000000
 
 func main() {
 	bestScore = readBestScore()
@@ -76,21 +78,34 @@ func checkForStop(stoppingChan chan struct{}) bool {
 
 func processResults(resultChan chan EvaluationResult, wg sync.WaitGroup) {
 	defer wg.Done()
-	counter, maxCount := 0, 10000
+	committer := intervalProcessor(commitFrequency, func(indices []int) {
+		log.Printf("Committing after %d combinations", commitFrequency)
+		writeBreakpoints(indices)
+		if cmdout, err := exec.Command("git", "commit", "-m", "Latest status", bestFile, breakpointFile).Output(); err != nil {
+			log.Printf("Commit failed", cmdout, err)
+		}
+	})
+	logger := intervalProcessor(messageFrequency, func(indices []int) {
+		log.Printf("Processed another batch of %d combinations: latest one was %v", messageFrequency, indices)
+	})
 	for result := range resultChan {
 		if bestScore == -1 || bestScore > result.score {
 			writeBest(result.schedule, result.score)
 			log.Printf("Found a better score: %d (was %d)", result.score, bestScore)
 			bestScore = result.score
 		}
-		counter++
-		if counter == maxCount {
-			log.Printf("Processed another batch of %d combinations: latest one was %v", maxCount, result.indices)
-			writeBreakpoints(result.indices)
-			counter = 0
-			if cmdout, err := exec.Command("git", "commit", "-m", "Latest status", bestFile, breakpointFile).Output(); err != nil {
-				log.Println("Commit failed", cmdout, err)
-			}
+		committer(result.indices)
+		logger(result.indices)
+	}
+}
+
+func intervalProcessor(interval int, f func([]int)) func([]int) {
+	count := 0
+	return func(indices []int) {
+		count++
+		if count >= interval {
+			count = 0
+			f(indices)
 		}
 	}
 }
